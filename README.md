@@ -20,17 +20,31 @@ CREATE TABLE data (
     PRIMARY KEY (id)
 );
 ```
-3. Start api from the `__main__.py` file
-4. Upload test data to mysql
+3. Disable ONLY_FULL_GROUP_BY
+```
+SET GLOBAL sql_mode = '';
+```
+4. If you are using DBeaver to access the mysql then in Connection settings -> Driver properties:
+```
+allowPublicKeyRetrival = true
+```
+5. Start app
+
+With termianal go to dataeng project root folder (where the README.md file is located) and give command
+```
+poetry run python3 -m dataeng
+```
+Or you can open the code with PyCharm and run the app from __main__.py.
+
+6. Upload test data to mysql
 ```
 curl "http://127.0.0.1:8000/upload"
 ```
-5. Top 5 most utilized devices (on average) on a date
+7. Top 5 most utilized devices (on average) on a date
 ```
 curl "http://127.0.0.1:8000/devices" | jq '.'
 ```
-
-6. Hourly rolling average of device utilization of a device between dates
+8. Hourly rolling average of device utilization of a device between dates
 ```
 curl "http://127.0.0.1:8000/average/?id=4AD20C95" | jq '.'
 ```
