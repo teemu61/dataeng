@@ -1,16 +1,21 @@
-from fastapi import FastAPI
-import json
+from fastapi import FastAPI, UploadFile
 from datetime import datetime, timedelta
 import mysql.connector
 import random
 import string
-from mysql.connector import connect, Error
 
-conn = mysql.connector.connect(
-   user='myuser', password='mypassword', host='127.0.0.1', database='mydatabase')
-cur = conn.cursor()
 
 app = FastAPI()
+
+host = 'mysql'
+
+conn = mysql.connector.connect(
+    user='myuser', password='mypassword', host=host, database='mydatabase')
+cur = conn.cursor()
+
+@app.get("/")
+def hello_world():
+    return {"message": "OK"}
 
 @app.get("/devices")
 async def devices():
@@ -20,14 +25,18 @@ async def devices():
 async def average(id: str):
     return average(id)
 
-@app.get("/upload/")
-async def upload():
-    return upload()
+@app.post("/upload/")
+async def upload_file(file: UploadFile):
+    cont_byte = file.file.read()
+    cont_str = cont_byte.decode("utf-8")
+    cont_dict = eval(cont_str)
+    upload(cont_dict)
+    return upload(cont_dict)
 
 def devices():
     try:
         conn = mysql.connector.connect(
-            user='root', password='rootpassword', host='127.0.0.1', database='mydatabase')
+            user='root', password='rootpassword', host=host, database='mydatabase')
         cursor = conn.cursor()
         query = """
         SELECT date, device_id, sum, row_num FROM(
@@ -40,26 +49,27 @@ def devices():
         cursor.execute(query)
         result = cursor.fetchall()
 
-        devices = []
+        devices_list = []
         response = {}
         for tup in result:
             if tup[3] < 5:
-                devices.append(tup[1])
+                devices_list.append(tup[1])
             else:
-                devices.append(tup[1])
-                response[tup[0]] = devices
-                devices = []
+                devices_list.append(tup[1])
+                response[tup[0]] = devices_list
+                devices_list = []
         cursor.close()
         conn.close()
-        return response
+        return {'response':response}
+        # return response
 
-    except Error as err:
-        print('Error message: ' + err.msg)
+    except Exception as err:
+        print('Error message: ' + repr(err))
 
-def average(id):
+def average(id: str):
     try:
         conn = mysql.connector.connect(
-            user='root', password='rootpassword', host='127.0.0.1', database='mydatabase')
+            user='root', password='rootpassword', host=host, database='mydatabase')
         cursor = conn.cursor()
         query = """
         SELECT
@@ -82,39 +92,36 @@ def average(id):
 
         return response
 
-    except Error as err:
-        print('Error message: ' + err.msg)
+    except Exception as err:
+        print('Error message: ' + repr(err))
 
 
-def upload():
+def upload(dataList: dict):
+    conn = mysql.connector.connect(
+        user='myuser', password='mypassword', host=host, database='mydatabase')
+    cur = conn.cursor()
 
     try:
-        conn = mysql.connector.connect(
-        user='myuser', password='mypassword', host='127.0.0.1', database='mydatabase')
-        cur = conn.cursor()
+        for i, data in enumerate(dataList):
+            date_str = data['date']
+            date_object = datetime.strptime(date_str, "%d-%b-%Y")
+            datetime_object = datetime.strptime(date_str, "%d-%b-%Y")
+            rows = []
+            for j, value in enumerate(data['values']):
+                date_object = datetime_object.date()
+                time_object = datetime_object.time()
+                device_id = data['deviceID']
+                random_value = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+                rows.append((random_value, date_object, time_object, device_id, value))
+                datetime_object = datetime_object + timedelta(minutes=5)
+            sql = "INSERT INTO data (id, date, time, device_id, value) VALUES (%s, %s, %s, %s, %s)"
+            cur.executemany(sql, rows)
+            conn.commit()
+            print(cur.rowcount, "record inserted.")
 
-        with open('../resources/2_device_utilization_data.json') as json_file:
-            datas = json.load(json_file)
-
-            for i, data in enumerate(datas):
-                date_str = data['date']
-                date_object = datetime.strptime(date_str, "%d-%b-%Y")
-                datetime_object = datetime.strptime(date_str, "%d-%b-%Y")
-                rows = []
-                for j, value in enumerate(data['values']):
-                    date_object = datetime_object.date()
-                    time_object = datetime_object.time()
-                    device_id = data['deviceID']
-                    random_value = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
-                    rows.append((random_value, date_object, time_object, device_id, value))
-                    datetime_object = datetime_object + timedelta(minutes = 5)
-                sql = "INSERT INTO data (id, date, time, device_id, value) VALUES (%s, %s, %s, %s, %s)"
-                cur.executemany(sql, rows)
-                conn.commit()
-                print(cur.rowcount, "record inserted.")
         count = cur.rowcount
         message = f"Inserted succesfully {count} records"
         return message
 
-    except Error as err:
-        print('Error message: ' + err.msg)
+    except Exception as err:
+        print('Error message: ' + repr(err))

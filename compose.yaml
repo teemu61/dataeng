@@ -1,0 +1,36 @@
+version: '3'
+
+services:
+  app:
+    container_name: my-app-container
+    image: teemu:test
+    build:
+      context: .
+    # image: teemu:test
+    environment:
+      PORT: 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      mysql:
+        condition: service_started
+
+  mysql:
+    container_name: my-mysql-container
+    image: mysql:latest
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: mydatabase
+      MYSQL_USER: myuser
+      MYSQL_PASSWORD: mypassword
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - "./scripts/schema.sql:/docker-entrypoint-initdb.d/1.sql"
+    ports:
+      - "3306:3306"
+    command:
+      --sql_mode=STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+    restart: always
+
+volumes:
+  mysql-data:
