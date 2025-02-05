@@ -6,7 +6,7 @@ WORKDIR /venv
 COPY pyproject.toml poetry.lock ./
 RUN poetry install --no-root --no-interaction
 
-FROM python:3.13
+FROM python:3.13-slim
 RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 ENV VIRTUAL_ENV=/venv/.venv
 ENV PATH="/venv/.venv/bin:$PATH"

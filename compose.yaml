@@ -6,7 +6,6 @@ services:
     image: teemu:test
     build:
       context: .
-    # image: teemu:test
     environment:
       PORT: 8000
     ports:

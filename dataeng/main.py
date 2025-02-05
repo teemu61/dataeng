@@ -7,12 +7,6 @@ import string
 
 app = FastAPI()
 
-host = 'mysql'
-
-conn = mysql.connector.connect(
-    user='myuser', password='mypassword', host=host, database='mydatabase')
-cur = conn.cursor()
-
 @app.get("/")
 def hello_world():
     return {"message": "OK"}
@@ -33,11 +27,19 @@ async def upload_file(file: UploadFile):
     upload(cont_dict)
     return upload(cont_dict)
 
+def get_conn():
+    conn = mysql.connector.connect(
+        user='root', password='rootpassword', host='mysql', database='mydatabase')
+    cursor = conn.cursor()
+    return conn, cursor
+
+def close_conn(conn, cursor):
+    cursor.close()
+    conn.close()
+
 def devices():
     try:
-        conn = mysql.connector.connect(
-            user='root', password='rootpassword', host=host, database='mydatabase')
-        cursor = conn.cursor()
+        conn, cursor = get_conn()
         query = """
         SELECT date, device_id, sum, row_num FROM(
         SELECT date, time, device_id, SUM(value) AS sum,
@@ -58,19 +60,15 @@ def devices():
                 devices_list.append(tup[1])
                 response[tup[0]] = devices_list
                 devices_list = []
-        cursor.close()
-        conn.close()
+        close_conn(conn, cursor)
         return {'response':response}
-        # return response
 
     except Exception as err:
         print('Error message: ' + repr(err))
 
 def average(id: str):
     try:
-        conn = mysql.connector.connect(
-            user='root', password='rootpassword', host=host, database='mydatabase')
-        cursor = conn.cursor()
+        conn, cursor = get_conn()
         query = """
         SELECT
            date, time, device_id, value,
@@ -87,19 +85,14 @@ def average(id: str):
         for tup in result:
             response[tup[0]] = tup[4]
 
-        cursor.close()
-        conn.close()
-
+        close_conn(conn, cursor)
         return response
 
     except Exception as err:
         print('Error message: ' + repr(err))
 
-
 def upload(dataList: dict):
-    conn = mysql.connector.connect(
-        user='myuser', password='mypassword', host=host, database='mydatabase')
-    cur = conn.cursor()
+    conn, cursor = get_conn()
 
     try:
         for i, data in enumerate(dataList):
@@ -115,12 +108,14 @@ def upload(dataList: dict):
                 rows.append((random_value, date_object, time_object, device_id, value))
                 datetime_object = datetime_object + timedelta(minutes=5)
             sql = "INSERT INTO data (id, date, time, device_id, value) VALUES (%s, %s, %s, %s, %s)"
-            cur.executemany(sql, rows)
+            cursor.executemany(sql, rows)
             conn.commit()
-            print(cur.rowcount, "record inserted.")
+            print(cursor.rowcount, "record inserted.")
 
-        count = cur.rowcount
+        count = cursor.rowcount
         message = f"Inserted succesfully {count} records"
+
+        close_conn(conn, cursor)
         return message
 
     except Exception as err:
