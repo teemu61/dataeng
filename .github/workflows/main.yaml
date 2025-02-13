@@ -1,0 +1,82 @@
+name: Main
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: { }
+
+jobs:
+  git-tag-and-push:
+    runs-on:
+      - ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      version: "1.0.0"
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configure git
+        run: |
+          git config user.name teemu61
+          git config user.email teemu.t.jappinen@gmail.com
+
+      - name: Add git tag, push the tag and set the version to outputs
+        id: versioning
+        run: |
+          git fetch --tags
+          pip3 install --user ruamel.yaml
+          VERSION=$(python3 -c "import dataeng; print(dataeng.__version__)")
+          git tag -a $(VERSION) -m v$(VERSION) && git push origin $(VERSION)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+  docker-build:
+    env:
+      DOCKERFILE_W_PATH: ./Dockerfile
+      VERSION: ${{ needs.git-tag-and-push.outputs.version }}
+    runs-on:
+      - ubuntu-latest
+    timeout-minutes: 20
+    needs:
+      - git-tag-and-push
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Docker buildx
+        uses: docker/setup-buildx-action@v2
+
+      - uses: 'google-github-actions/auth@v2'
+        id: gcp_auth
+        with:
+          credentials_json: ${{ secrets.GCP_REPO_JSON_KEY }}
+
+      - name: 'Set up Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v2'
+
+      - name: Register gcloud as a Docker credential helper
+        run: gcloud auth configure-docker europe-north1-docker.pkg.dev
+
+      - name: Define image meta
+        id: docker_meta
+        uses: docker/metadata-action@v4
+        with:
+          images: |
+            europe-north1-docker.pkg.dev/vivid-env-450617-g5/teemu-images/dataeng
+          flavor: |
+            latest=false
+          tags: |
+            type=raw,value=${{ env.VERSION }}  
+
+      - name: Build release image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          no-cache: false
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.docker_meta.outputs.tags }}
+          provenance: false
+          secret-files: gcp_secret=${{ steps.gcp_auth.outputs.credentials_file_path }}
